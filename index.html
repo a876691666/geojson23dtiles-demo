@@ -59,6 +59,10 @@
       .download-links a:hover {
         background-color: #0b7dda;
       }
+      .button-group {
+        display: flex;
+        gap: 10px;
+      }
     </style>
   </head>
   <body>
@@ -67,34 +71,7 @@
 
       <div>
         <label for="geojson">GeoJSON数据:</label>
-        <textarea id="geojson" placeholder="请输入GeoJSON数据...">{
-	"type": "FeatureCollection",
-	"name": "Building",
-	"features": [
-		{
-			"type": "Feature",
-			"properties": {
-				"FHeight": 3.0,
-				"FNum": "6",
-				"Height": 50.0
-			},
-			"geometry": {
-				"type": "MultiPolygon",
-				"coordinates": [
-					[
-						[
-							[ 118.5, 32.5 ],
-							[ 119.5, 32.5 ],
-							[ 119.5, 32.2 ],
-							[ 118.5, 32.2 ],
-							[ 118.5, 32.5 ]
-						]
-					]
-				]
-			}
-		}
-	]
-}</textarea>
+        <textarea id="geojson" placeholder="请输入GeoJSON数据..."></textarea>
       </div>
 
       <div class="row">
@@ -129,16 +106,40 @@
         </div>
       </div>
 
-      <button onclick="generate3DTiles()">生成3D Tiles</button>
+      <div class="button-group">
+        <button onclick="loadOSMGeoJSON()">加载测试用OSM GeoJSON</button>
+        <button onclick="generate3DTiles()">生成3D Tiles</button>
+      </div>
 
       <div id="result"></div>
     </div>
 
     <script type="module">
-      import init, { generate_3dtiles_from_geojson } from "./geojson23dtiles_rs.js";
+      import init, { generate_3dtiles_from_geojson } from "../pkg/geojson23dtiles_rs.js";
 
       // 初始化WASM模块
       await init();
+
+      // 加载OSM GeoJSON数据
+      window.loadOSMGeoJSON = async function() {
+        const geojsonTextarea = document.getElementById("geojson");
+        const resultDiv = document.getElementById("result");
+        
+        try {
+          resultDiv.innerHTML = "<p>正在加载OSM GeoJSON数据...</p>";
+          const response = await fetch("osm.geojson");
+          
+          if (!response.ok) {
+            throw new Error(`HTTP错误! 状态: ${response.status}`);
+          }
+          
+          const data = await response.text();
+          geojsonTextarea.value = data;
+          resultDiv.innerHTML = "<p>OSM GeoJSON数据加载成功!</p>";
+        } catch (error) {
+          resultDiv.innerHTML = `<p style="color: red;">加载OSM GeoJSON失败: ${error.message}</p>`;
+        }
+      };
 
       // 全局函数，供HTML按钮调用
       window.generate3DTiles = async function () {
