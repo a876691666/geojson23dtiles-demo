@@ -68,6 +68,8 @@
   <body>
     <div class="container">
       <h1>GeoJSON to 3D Tiles 转换器</h1>
+      <h2>当前wasm构建的是 WGS84 到 ECEF的转换</h2>
+      <h2>数据若不存在建筑高度的相关字段, 默认按照3米高度处理</h2>
 
       <div>
         <label for="geojson">GeoJSON数据:</label>
@@ -115,7 +117,7 @@
     </div>
 
     <script type="module">
-      import init, { generate_3dtiles_from_geojson } from "../pkg/geojson23dtiles_rs.js";
+      import init, { generate_3dtiles_from_geojson } from "./geojson23dtiles_rs.js";
 
       // 初始化WASM模块
       await init();
