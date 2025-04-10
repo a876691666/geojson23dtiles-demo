@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>GeoJSON to 3D Tiles WASM示例</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      textarea {
+        width: 100%;
+        height: 200px;
+        margin: 10px 0;
+      }
+      button {
+        padding: 10px 20px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+      }
+      .input-group {
+        flex: 1;
+      }
+      .download-links {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .download-links a {
+        padding: 5px 10px;
+        background-color: #2196F3;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+      }
+      .download-links a:hover {
+        background-color: #0b7dda;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>GeoJSON to 3D Tiles 转换器</h1>
+
+      <div>
+        <label for="geojson">GeoJSON数据:</label>
+        <textarea id="geojson" placeholder="请输入GeoJSON数据...">{
+	"type": "FeatureCollection",
+	"name": "Building",
+	"features": [
+		{
+			"type": "Feature",
+			"properties": {
+				"FHeight": 3.0,
+				"FNum": "6",
+				"Height": 50.0
+			},
+			"geometry": {
+				"type": "MultiPolygon",
+				"coordinates": [
+					[
+						[
+							[ 118.5, 32.5 ],
+							[ 119.5, 32.5 ],
+							[ 119.5, 32.2 ],
+							[ 118.5, 32.2 ],
+							[ 118.5, 32.5 ]
+						]
+					]
+				]
+			}
+		}
+	]
+}</textarea>
+      </div>
+
+      <div class="row">
+        <div class="input-group">
+          <label for="heightKey">高度字段名:</label>
+          <input type="text" id="heightKey" value="Height" />
+        </div>
+        <div class="input-group">
+          <label for="heightMode">高度模式:</label>
+          <select id="heightMode">
+            <option value="direct">直接高度</option>
+            <option value="layer">层高倍数</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="input-group">
+          <label for="layerKey">图层字段名 (可选):</label>
+          <input type="text" id="layerKey" value="FNum" />
+        </div>
+        <div class="input-group">
+          <label for="layerHeightKey">图层高度字段名 (可选):</label>
+          <input type="text" id="layerHeightKey" value="FHeight" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="input-group">
+          <label for="outputDir">输出目录:</label>
+          <input type="text" id="outputDir" value="3dtiles_output" />
+        </div>
+      </div>
+
+      <button onclick="generate3DTiles()">生成3D Tiles</button>
+
+      <div id="result"></div>
+    </div>
+
+    <script type="module">
+      import init, { generate_3dtiles_from_geojson } from "./geojson23dtiles_rs.js";
+
+      // 初始化WASM模块
+      await init();
+
+      // 全局函数，供HTML按钮调用
+      window.generate3DTiles = async function () {
+        const geojsonInput = document.getElementById("geojson").value;
+        const heightKey = document.getElementById("heightKey").value;
+        const heightMode = document.getElementById("heightMode").value;
+        const layerKey = document.getElementById("layerKey").value;
+        const layerHeightKey = document.getElementById("layerHeightKey").value;
+        const resultDiv = document.getElementById("result");
+
+        const geojsonInputUint8Array = new TextEncoder().encode(geojsonInput);
+
+        try {
+          // 调用WASM函数
+          const start = new Date();
+          const result = await generate_3dtiles_from_geojson(
+            geojsonInputUint8Array,
+            heightKey,
+            heightMode,
+            layerKey,
+            layerHeightKey
+          );
+          const end = new Date();
+          const time = end - start;
+          console.log(`生成时间: ${time}ms`);
+
+          // 解析返回的结果
+          const resultObj = JSON.parse(result);
+          
+          // 创建B3DM文件的Blob
+          const b3dmBlob = new Blob([new Uint8Array(resultObj.b3dm)], { type: "application/octet-stream" });
+          const b3dmUrl = URL.createObjectURL(b3dmBlob);
+          
+          // 创建Tileset.json文件的Blob
+          const tilesetBlob = new Blob([resultObj.tileset], { type: "application/json" });
+          const tilesetUrl = URL.createObjectURL(tilesetBlob);
+
+          // 显示结果
+          resultDiv.innerHTML = `
+            <p>3D Tiles生成成功！</p>
+            <p>生成速度: ${time}ms</p>
+            <p>生成的文件:</p>
+            <div class="download-links">
+              <a href="${b3dmUrl}" download="model.b3dm">下载B3DM文件</a>
+              <a href="${tilesetUrl}" download="tileset.json">下载Tileset.json</a>
+            </div>
+            <p>B3DM文件大小: ${(resultObj.b3dm.length / 1024).toFixed(2)} KB</p>
+            <p>Tileset.json文件大小: ${(resultObj.tileset.length / 1024).toFixed(2)} KB</p>
+            <p>注意: 在浏览器环境中，文件会生成在内存中，但无法直接保存到本地文件系统。</p>
+            <p>在实际应用中，您需要将这些数据发送到服务器进行保存。</p>
+          `;
+        } catch (error) {
+          resultDiv.innerHTML = `<p style="color: red;">错误: ${error}</p>`;
+        }
+      };
+    </script>
+  </body>
+</html>
